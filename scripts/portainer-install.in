@@ -30,12 +30,14 @@ PROGDIR=${0:h}
 BUG_REPORT=@PACKAGE_BUGREPORT@
 PACKAGE_VERSION=@PACKAGE_VERSION@
 
+typeset -r PORTAINER_STACK_URL=https://downloads.portainer.io/portainer-agent-stack.yml
+typeset -r PORTAINER_STACK_FILE=${TMPDIR}/portainer-agent-stack.yml
+
 # getopts
 typeset -a help_flag
+typeset -a uninstall_flag
 typeset -a verbose_flag
 typeset -a version_flag
-typeset -a base64_decode_cmd
-typeset -a jq_cmd
 
 # Output verbosity and logging
 exec 5>/dev/null
@@ -61,7 +63,7 @@ function __trap()
 }
 
 # Program dependencies
-typeset -a REQUIRED_PROGS=( curl )
+typeset -a REQUIRED_PROGS=( curl docker )
 
 function check_required_programs()
 {
@@ -93,18 +95,16 @@ function print_usage()
   print "${PROGNAME} ${PACKAGE_VERSION}"
   print
   print "Usage:"
-  print "${PROGNAME} (options)* command"
+  print "${PROGNAME}"
   print "${PROGNAME} -h"
   print "${PROGNAME} -v"
   print
-  print "Commands:"
-  print "  standalone    Installs portainer in a standalone Docker host"
-  print "  swarm         Installs portainer in a Docker Swarm cluster"
   print
   print "Options:"
-  print " -h, --help     Print this message."
-  print " -v, --verbose  Print verbose output."
-  print "     --version  Print the program version."
+  print " -h, --help       Print this message."
+  print " -u, --uninstall  Uninstall portainer"
+  print " -v, --verbose    Print verbose output."
+  print "     --version    Print the program version."
   print
   print "See the man page for more information."
   print
@@ -114,24 +114,92 @@ function print_usage()
   exit 0
 }
 
+function uninstall_standalone()
+{
+  docker rm -f portainer
+}
+
+function install_standalone()
+{
+  docker volume create portainer_data
+  docker run -d \
+    -p 8000:8000 \
+    -p 9000:9000 \
+    --name=portainer \
+    --restart=always \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v portainer_data:/data portainer/portainer
+}
+
+function uninstall_swarm()
+{
+  docker stack rm portainer
+}
+
+function install_swarm()
+{
+  curl -L ${PORTAINER_STACK_URL} -o ${TMPDIR}/portainer-agent-stack.yml
+  docker stack deploy --compose-file=${PORTAINER_STACK_FILE} portainer
+}
+
+function is_swarm()
+{
+  local IS_SWARM=$(docker info --format '{{.Swarm.LocalNodeState}}')
+
+  if [[ ${IS_SWARM} == "active" ]]
+  then
+    return 0
+  else
+    return 1
+  fi
+}
+
+function install_portainer()
+{
+  if is_swarm
+  then
+    install_swarm
+  else
+    install_standalone
+  fi
+}
+
+function uninstall_portainer()
+{
+  if is_swarm
+  then
+    uninstall_swarm
+  else
+    uninstall_standalone
+  fi
+}
+
 function __main()
 {
   check_required_programs
 
   zparseopts -D -E \
-             h=help_flag    -help=help_flag            \
-             v=verbose_flag -verbose=verbose_flag      \
-                            -version=version_flag
+             h=help_flag      -help=help_flag           \
+             u=uninstall_flag -uninstall=uninstall_flag \
+             v=verbose_flag   -verbose=verbose_flag     \
+                              -version=version_flag
 
   (( ${#help_flag} ))    && print_usage
   (( ${#verbose_flag} )) && exec 5>&2
   (( ${#version_flag} )) && print_version
 
-  (( $* == 1 )) ||
+  (( $# == 0 )) ||
   {
     >&2 print "Invalid command."
     return 1
   }
+
+  if (( ${#uninstall_flag} ))
+  then
+    uninstall_portainer
+  else
+    install_portainer
+  fi
 }
 
 # main

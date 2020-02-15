@@ -34,10 +34,8 @@ AM_SILENT_RULES([yes])
 
 # Checks for programs.
 AC_PATH_PROG([CURL_CMD],   [curl],  [no])
-AC_PATH_PROG([DOCKER_CMD], [docker],  [no])
 
 AS_VAR_IF([CURL_CMD],   [no], [AC_MSG_ERROR([curl is required.])],   [])
-AS_VAR_IF([DOCKER_CMD], [no], [AC_MSG_ERROR([docker is required.])], [])
 
 # Checks for libraries.
 

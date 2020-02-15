@@ -43,13 +43,10 @@ install this package.
 Usage
 -----
 
-The following commands installs portainer in a standalone docker host:
+The following command checks whether the docker host is in Swarm more or in
+standalone mode and performs the suitable installation procedure:
 
-    $ portainer-install standalone
-
-The following command installs portainer in a Swarm cluster:
-
-    $ portainer-install swarm
+    $ portainer-install
 
 Bug Reports
 -----------
